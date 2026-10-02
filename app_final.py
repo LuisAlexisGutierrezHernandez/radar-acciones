@@ -125,7 +125,7 @@ else:
     st.dataframe(df_ultimos_5, use_container_width=True, hide_index=True)
 
     # -------------------------------------------------------------
-    # 2. PRONÓSTICO PARA MAÑANA (CANDADO / TAPIZADO PARA NO SUSCRIPTORES)
+    # 2. SECCIÓN DE PRONÓSTICO PARA MAÑANA (SIN FILTRACIONES DE COLOR)
     # -------------------------------------------------------------
     st.markdown("---")
 
@@ -150,15 +150,15 @@ else:
     col1.metric("Último Precio de Cierre", f"${precio_actual:,.2f} USD", f"{cambio_hoy:+.2f}% hoy")
 
     if es_usuario_pro:
-        # VISIÓN SUSCRIPTOR PRO
+        # VISIÓN PRO (REVELADA)
         if prediccion == 2:
-            col2.metric("Pronóstico (Día Siguiente)", "🟢 ALCISTA", "Mayor fuerza compradora")
+            col2.metric("Pronóstico (Día Siguiente)", "🟢 ALCISTA", "Mayor fuerza compradora", delta_color="normal")
         elif prediccion == 1:
-            col2.metric("Pronóstico (Día Siguiente)", "🔴 BAJISTA", "Presión vendedora")
+            col2.metric("Pronóstico (Día Siguiente)", "🔴 BAJISTA", "Presión vendedora", delta_color="inverse")
         else:
-            col2.metric("Pronóstico (Día Siguiente)", "🟡 LATERAL", "Sin tendencia clara")
+            col2.metric("Pronóstico (Día Siguiente)", "🟡 LATERAL", "Sin tendencia clara", delta_color="off")
 
-        col3.metric("Fuerza del Pronóstico", f"{max(prob_alcista, prob_bajista, prob_lateral):.1f}%", "Frente al 33% normal de azar")
+        col3.metric("Fuerza del Pronóstico", f"{max(prob_alcista, prob_bajista, prob_lateral):.1f}%", "Frente al 33% normal de azar", delta_color="off")
 
         st.subheader("🎯 Desglose de Probabilidades")
         c_up, c_flat, c_down = st.columns(3)
@@ -185,28 +185,28 @@ else:
             )
         else:
             st.info(
-                f"**Consolidación / Rango:** La mayor probabilidad (**{prob_lateral:.1f}%**) indica mercado lateral sin catalizador claro."
+                f"**Consolidación / Rango:** La mayor probabilidad (**{prob_lateral:.1f}%**) indica mercado en pausa sin catalizador claro."
             )
     else:
-        # VISIÓN PÚBLICA (BLOQUEADA Y TAPADA CON CANDADO)
-        col2.metric("Pronóstico (Día Siguiente)", "🔒 BLOQUEADO", "Exclusivo Suscriptores")
-        col3.metric("Fuerza del Pronóstico", "🔒 OCULTO", "Requiere Clave Pro")
+        # VISIÓN PÚBLICA (SIN NINGUNA PISTA NI FLECHA DE COLOR)
+        col2.metric("Pronóstico (Día Siguiente)", "🔒 BLOQUEADO")
+        col3.metric("Fuerza del Pronóstico", "🔒 OCULTO")
 
-        st.info("🔒 **Desglose de Probabilidades y Lectura Algorítmica Reservadas:** El cálculo predictivo para la jornada de mañana está resguardado para miembros activos.")
+        st.info("🔒 **Desglose de Probabilidades y Lectura Algorítmica Reservadas:** El cálculo predictivo de mañana y la lectura estratégica del modelo están protegidos para miembros activos.")
         st.markdown(
-            "> 🛡️ **Contenido Protegido:** Ingresa tu clave en la barra lateral o suscríbete a uno de los planes al pie de la página para desbloquear la proyección direccional y las probabilidades exactas."
+            "> 🛡️ **Ventaja Competitiva Protegida:** Para conocer la dirección probabilística de la siguiente sesión, adquiere una de las membresías al pie de la página o ingresa tu clave Pro en la barra lateral."
         )
 
     # -------------------------------------------------------------
-    # 3. GRÁFICA DE EVOLUCIÓN HISTÓRICA (SIEMPRE VISIBLE)
+    # 3. GRÁFICA DE EVOLUCIÓN HISTÓRICA (NÍTIDA Y PROFESIONAL)
     # -------------------------------------------------------------
     st.markdown("---")
     st.subheader("📊 Evolución del Precio y Tendencias")
 
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=datos_proc.index, y=datos_proc["Close"], mode="lines", name="Precio de Cierre", line=dict(color="#0284c7", width=2)))
+    fig.add_trace(go.Scatter(x=datos_proc.index, y=datos_proc["Close"], mode="lines", name="Precio de Cierre", line=dict(color="#2563eb", width=2)))
     fig.add_trace(go.Scatter(x=datos_proc.index, y=datos_proc["SMA_40"], mode="lines", name="Tendencia Corto Plazo", line=dict(color="#f59e0b", dash="dot")))
-    fig.add_trace(go.Scatter(x=datos_proc.index, y=datos_proc["SMA_160"], mode="lines", name="Tendencia Largo Plazo", line=dict(color="#8b5cf6", dash="dash")))
+    fig.add_trace(go.Scatter(x=datos_proc.index, y=datos_proc["SMA_160"], mode="lines", name="Tendencia Largo Plazo", line=dict(color="#7c3aed", dash="dash")))
 
     fig.update_layout(
         template="plotly_white",
@@ -218,57 +218,201 @@ else:
     st.plotly_chart(fig, use_container_width=True)
 
     # -------------------------------------------------------------
-    # 4. TARJETAS DE MEMBRESÍA LIMPIAS Y FORMATEADAS
+    # 4. TARJETAS DE MEMBRESÍA AL ESTILO DEL EJEMPLO
     # -------------------------------------------------------------
     if not es_usuario_pro:
         st.markdown("---")
-        st.subheader("💎 Desbloquea las Señales en Tiempo Real para Mañana")
-        st.write("Adquiere tu clave de acceso inmediata y opera con la ventaja cuantitativa del radar:")
+        st.subheader("💎 Desbloquea las Señales Diarias en Tiempo Real")
+        st.write("Selecciona el plan que mejor se adapte a tu ritmo de trading para recibir tu clave de acceso inmediata:")
 
-        col_p1, col_p2, col_p3 = st.columns(3)
+        # Inyección de estilos exactos a la tarjeta de referencia
+        st.markdown(
+            """
+            <style>
+            .pricing-wrapper {
+                background: #ffffff;
+                border: 1px solid #e5e7eb;
+                border-radius: 14px;
+                padding: 16px;
+                display: flex;
+                flex-direction: column;
+                justify-content: space-between;
+                min-height: 480px;
+                box-shadow: 0 4px 6px -1px rgba(0,0,0,0.04);
+            }
+            .pricing-wrapper-featured {
+                background: #4f46e5;
+                border: 1px solid #4338ca;
+                border-radius: 14px;
+                padding: 16px;
+                display: flex;
+                flex-direction: column;
+                justify-content: space-between;
+                min-height: 480px;
+                color: #ffffff;
+                box-shadow: 0 10px 15px -3px rgba(79, 70, 229, 0.25);
+            }
+            .inner-box {
+                background: #f8fafc;
+                border-radius: 10px;
+                padding: 24px 16px;
+                text-align: center;
+                margin-bottom: 16px;
+            }
+            .inner-box-featured {
+                background: transparent;
+                padding: 24px 16px;
+                text-align: center;
+                margin-bottom: 16px;
+            }
+            .plan-name {
+                font-size: 1.15rem;
+                font-weight: 700;
+                color: #1e293b;
+                margin-bottom: 8px;
+            }
+            .plan-name-white {
+                font-size: 1.15rem;
+                font-weight: 700;
+                color: #ffffff;
+                margin-bottom: 8px;
+            }
+            .plan-price-num {
+                font-size: 2.5rem;
+                font-weight: 800;
+                color: #4f46e5;
+                line-height: 1;
+                margin-bottom: 10px;
+            }
+            .plan-price-num-white {
+                font-size: 2.5rem;
+                font-weight: 800;
+                color: #ffffff;
+                line-height: 1;
+                margin-bottom: 10px;
+            }
+            .plan-subtitle {
+                font-size: 0.85rem;
+                color: #64748b;
+                min-height: 38px;
+                margin-bottom: 16px;
+            }
+            .plan-subtitle-white {
+                font-size: 0.85rem;
+                color: #e0e7ff;
+                min-height: 38px;
+                margin-bottom: 16px;
+            }
+            .btn-action-purple {
+                display: block;
+                width: 100%;
+                background: #4f46e5;
+                color: #ffffff !important;
+                text-align: center;
+                padding: 10px;
+                border-radius: 8px;
+                font-weight: 700;
+                text-decoration: none;
+                font-size: 0.95rem;
+            }
+            .btn-action-white {
+                display: block;
+                width: 100%;
+                background: #ffffff;
+                color: #4f46e5 !important;
+                text-align: center;
+                padding: 10px;
+                border-radius: 8px;
+                font-weight: 700;
+                text-decoration: none;
+                font-size: 0.95rem;
+            }
+            .feature-list {
+                font-size: 0.88rem;
+                color: #475569;
+                line-height: 1.6;
+                padding-left: 18px;
+                margin-top: 8px;
+            }
+            .feature-list-white {
+                font-size: 0.88rem;
+                color: #f8fafc;
+                line-height: 1.6;
+                padding-left: 18px;
+                margin-top: 8px;
+            }
+            </style>
+            """,
+            unsafe_allow_html=True
+        )
 
-        with col_p1:
-            with st.container(border=True):
-                st.subheader("Pase Semanal")
-                st.markdown("### $50 MXN")
-                st.caption("5 sesiones hábiles de mercado")
-                st.markdown(
-                    """
-                    * ✅ Señal algorítmica KNN para la siguiente sesión
-                    * ✅ Desglose probabilístico de las 9 tecnológicas
-                    * ✅ Acceso inmediato por 1 semana completa
-                    * 🎯 Ideal para validar la herramienta
-                    """
-                )
+        col_t1, col_t2, col_t3 = st.columns(3)
 
-        with col_p2:
-            with st.container(border=True):
-                st.subheader("Pase Quincenal")
-                st.markdown("### $75 MXN")
-                st.caption("10 sesiones hábiles de mercado")
-                st.markdown(
-                    """
-                    * ✅ **Ahorro del 25%** frente al plan semanal
-                    * ✅ Actualización diaria al cierre de Wall Street
-                    * ✅ Acceso continuo por 2 semanas
-                    * 🎯 Para swing traders activos
-                    """
-                )
+        with col_t1:
+            st.markdown(
+                """
+                <div class="pricing-wrapper">
+                    <div class="inner-box">
+                        <div class="plan-name">Pase Semanal</div>
+                        <div class="plan-price-num">$50</div>
+                        <div class="plan-subtitle">Acceso de prueba ideal para validar las señales algorítmicas en tu semana operativa.</div>
+                        <a href="#" class="btn-action-purple">Comprar</a>
+                    </div>
+                    <div>
+                        <ol class="feature-list">
+                            <li>5 sesiones bursátiles completas.</li>
+                            <li>Pronóstico KNN diario para la siguiente sesión.</li>
+                            <li>Desglose probabilístico de las 9 tecnológicas.</li>
+                        </ol>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
 
-        with col_p3:
-            with st.container(border=True):
-                st.markdown("**:blue[⭐ RECOMENDADO]**")
-                st.subheader("Pase Mensual")
-                st.markdown("### $125 MXN")
-                st.caption("Acceso continuo por 1 mes calendario")
-                st.markdown(
-                    """
-                    * ✅ **Costo equivalente a solo $31.25 MXN/semana**
-                    * ✅ **37% de descuento total**
-                    * ✅ Señales diarias para todo el radar (NVDA, AMD, etc.)
-                    * ✅ Máxima consistencia operativa
-                    """
-                )
+        with col_t2:
+            st.markdown(
+                """
+                <div class="pricing-wrapper">
+                    <div class="inner-box">
+                        <div class="plan-name">Pase Quincenal</div>
+                        <div class="plan-price-num">$75</div>
+                        <div class="plan-subtitle">Para traders activos que buscan continuidad con un 25% de ahorro semanal.</div>
+                        <a href="#" class="btn-action-purple">Comprar</a>
+                    </div>
+                    <div>
+                        <ol class="feature-list">
+                            <li>10 sesiones de mercado continuas.</li>
+                            <li>Actualización diaria al cierre de Wall Street.</li>
+                            <li>Consulta continua de métricas y tendencias.</li>
+                        </ol>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+        with col_t3:
+            st.markdown(
+                """
+                <div class="pricing-wrapper-featured">
+                    <div class="inner-box-featured">
+                        <div class="plan-name-white">⭐ Pase Mensual (Recomendado)</div>
+                        <div class="plan-price-num-white">$125</div>
+                        <div class="plan-subtitle-white">Máxima consistencia: solo $31.25 MXN por semana (37% de descuento).</div>
+                        <a href="#" class="btn-action-white">Comprar</a>
+                    </div>
+                    <div>
+                        <ol class="feature-list-white">
+                            <li>Acceso total por 1 mes calendario completo (~22 sesiones).</li>
+                            <li>Señales de las 9 megacaps tecnológicas sin límites.</li>
+                            <li>Soporte de actualización y acceso prioritario a mejoras.</li>
+                        </ol>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
 
     # -------------------------------------------------------------
     # 5. DESLINDE LEGAL
