@@ -4,7 +4,6 @@ import numpy as np
 import yfinance as yf
 from sklearn.neighbors import KNeighborsClassifier
 import plotly.graph_objects as go
-from datetime import timedelta
 
 # Configuración visual de la página
 st.set_page_config(
@@ -13,8 +12,56 @@ st.set_page_config(
     layout="wide"
 )
 
-# Claves de acceso válidas (puedes agregar o cambiar las que tú entregues a tus suscriptores)
-CLAVES_VALIDAS = ["RADAR2026", "PRO_MEMBER_50", "ALPHA_QUANT"]
+# Estilos CSS personalizados para el efecto de desenfoque y las tarjetas de precios
+st.markdown(
+    """
+    <style>
+    .blur-container {
+        filter: blur(7px);
+        user-select: none;
+        pointer-events: none;
+        opacity: 0.6;
+    }
+    .pricing-card {
+        background-color: #1e222d;
+        border-radius: 12px;
+        padding: 22px;
+        border: 1px solid #2d3343;
+        text-align: center;
+        margin-bottom: 15px;
+    }
+    .pricing-card-highlight {
+        background-color: #1f2a38;
+        border-radius: 12px;
+        padding: 22px;
+        border: 2px solid #00D4B2;
+        text-align: center;
+        margin-bottom: 15px;
+    }
+    .plan-title {
+        font-size: 1.25rem;
+        font-weight: 700;
+        margin-bottom: 6px;
+    }
+    .plan-price {
+        font-size: 2rem;
+        font-weight: 800;
+        color: #00D4B2;
+        margin-bottom: 12px;
+    }
+    .plan-desc {
+        font-size: 0.9rem;
+        color: #cfd3dc;
+        line-height: 1.4;
+        text-align: left;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+# Claves de acceso válidas (Incluye tu clave permanente de fundador)
+CLAVES_VALIDAS = ["FOUNDER_MASTER_2026", "RADAR2026", "PRO_MEMBER_50"]
 
 st.title("📈 Radar Inteligente de Acciones Tecnológicas")
 st.write(
@@ -22,39 +69,26 @@ st.write(
     "tecnológicas y proyecta su tendencia más probable para la siguiente jornada con base en patrones históricos."
 )
 
-# Lista de acciones disponibles (tu selección original exacta)
+# Lista de acciones disponibles exacta
 tickers_default = ["NVDA", "MU", "AMD", "INTC", "AVGO", "GOOG", "META", "MSFT", "ORCL"]
 
-# Barra lateral
+# Barra lateral limpia
 st.sidebar.header("⚙️ Configuración")
 seleccion_ticker = st.sidebar.selectbox("Selecciona la acción a revisar:", tickers_default)
 dias_analisis = st.sidebar.slider("Años de historia para analizar:", min_value=2, max_value=5, value=5)
 
-# Control de membresía / Clave de acceso
 st.sidebar.markdown("---")
 st.sidebar.subheader("🔐 Acceso Suscriptor Pro")
-clave_ingresada = st.sidebar.text_input("Ingresa tu Clave de Acceso:", type="password", placeholder="Clave de suscriptor")
+clave_ingresada = st.sidebar.text_input("Ingresa tu Clave de Acceso:", type="password", placeholder="Ingresa tu clave...")
 
 es_usuario_pro = clave_ingresada in CLAVES_VALIDAS
 
-if not es_usuario_pro:
-    if clave_ingresada:
-        st.sidebar.error("❌ Clave incorrecta o expirada.")
-    else:
-        st.sidebar.info("💡 Estás en **Modo Demostración** con datos históricos reales.")
-    
-    st.sidebar.markdown("### 💎 Planes de Membresía")
-    st.sidebar.markdown(
-        """
-        * **Pase 1 Semana:** $50 MXN  
-        * **Pase 2 Semanas:** $75 MXN  
-        * **Pase Mensual:** $125 MXN ⭐ *(Recomendado)*  
-        
-        Adquiere tu clave y desbloquea las señales en tiempo real para la sesión de mañana.
-        """
-    )
+if es_usuario_pro:
+    st.sidebar.success("✅ Acceso Pro Activo (En Vivo)")
+elif clave_ingresada:
+    st.sidebar.error("❌ Clave no válida")
 else:
-    st.sidebar.success("✅ Suscripción Pro Activa: Datos en Vivo")
+    st.sidebar.info("Modo demostración. Desbloquea la señal de mañana abajo.")
 
 boton_analizar = st.sidebar.button("🔄 Actualizar Datos y Pronóstico")
 
@@ -93,29 +127,13 @@ def calcular_indicadores(df):
 
     return d.dropna().copy()
 
-with st.spinner("Consultando datos de mercado..."):
+with st.spinner("Consultando datos de mercado en tiempo real..."):
     datos_crudos = descargar_datos(seleccion_ticker, dias_analisis)
 
 if len(datos_crudos) < 200:
     st.error("No hay suficientes datos disponibles para esta empresa.")
 else:
-    # Corte histórico real para la versión pública / demo
-    if not es_usuario_pro:
-        # Se recortan las últimas 10 sesiones hábiles reales
-        datos_para_modelo = datos_crudos.iloc[:-10].copy()
-        fecha_evaluada = datos_para_modelo.index[-1].strftime("%Y-%m-%d")
-        
-        st.warning(
-            f"👀 **Modo Demostración Activo (Auditoría Histórica Real):** "
-            f"Estás viendo el análisis real generado al cierre del **{fecha_evaluada}**. "
-            f"Para consultar las proyecciones en tiempo real para la sesión de mañana, ingresa tu clave en el panel izquierdo."
-        )
-    else:
-        datos_para_modelo = datos_crudos.copy()
-        fecha_evaluada = datos_para_modelo.index[-1].strftime("%Y-%m-%d")
-        st.info(f"⚡ **Modo Suscriptor Activo:** Datos actualizados al cierre de mercado del **{fecha_evaluada}**.")
-
-    datos_proc = calcular_indicadores(datos_para_modelo)
+    datos_proc = calcular_indicadores(datos_crudos)
     features = ["Slope_SMA_40", "Slope_SMA_80", "Slope_SMA_160", "RSI", "Relative_Range"]
 
     X = datos_proc[features]
@@ -124,27 +142,67 @@ else:
     modelo = KNeighborsClassifier(n_neighbors=50)
     modelo.fit(X, y)
 
+    # Cálculo del pronóstico más reciente
     valores_hoy = X.iloc[[-1]]
     prediccion = modelo.predict(valores_hoy)[0]
     probabilidades = modelo.predict_proba(valores_hoy)[0]
-    
-    # Mapeo de probabilidades (0=Lateral, 1=Bajista, 2=Alcista)
+
     prob_dict = {clase: prob for clase, prob in zip(modelo.classes_, probabilidades)}
     prob_alcista = prob_dict.get(2, 0.0) * 100
     prob_bajista = prob_dict.get(1, 0.0) * 100
     prob_lateral = prob_dict.get(0, 0.0) * 100
 
-    precio_actual = float(datos_para_modelo["Close"].iloc[-1])
-    precio_anterior = float(datos_para_modelo["Close"].iloc[-2])
+    precio_actual = float(datos_crudos["Close"].iloc[-1])
+    precio_anterior = float(datos_crudos["Close"].iloc[-2])
     cambio_hoy = ((precio_actual - precio_anterior) / precio_anterior) * 100
+    fecha_hoy = datos_crudos.index[-1].strftime("%Y-%m-%d")
 
-    # Tarjetas visuales de resumen
-    st.subheader(f"📌 Resumen para la Siguiente Sesión: {seleccion_ticker}")
-    st.caption(f"📅 **Datos de cierre base:** {fecha_evaluada} | **Proyección generada para:** Siguiente sesión hábil")
+    # -------------------------------------------------------------
+    # 1. TABLA PÚBLICA: ÚLTIMAS 5 SESIONES REALES EVALUADAS
+    # -------------------------------------------------------------
+    st.subheader(f"📋 Auditoría de los Últimos 5 Días Reales: {seleccion_ticker}")
+    st.write("Verifica el comportamiento y proyecciones calculadas por el modelo en las 5 sesiones hábiles más recientes:")
+
+    # Tomar las últimas 5 sesiones cerradas reales
+    ultimas_5_X = X.iloc[-6:-1]
+    preds_5 = modelo.predict(ultimas_5_X)
+    probs_5 = modelo.predict_proba(ultimas_5_X)
+
+    filas = []
+    for idx, (fecha, row_x) in enumerate(ultimas_5_X.iterrows()):
+        f_str = fecha.strftime("%Y-%m-%d")
+        pr_cierre = datos_crudos.loc[fecha, "Close"]
+        p_clase = preds_5[idx]
+        p_probs = probs_5[idx]
+        p_dict_temp = {clase: pr for clase, pr in zip(modelo.classes_, p_probs)}
+        
+        etiqueta = "🟢 Alcista" if p_clase == 2 else ("🔴 Bajista" if p_clase == 1 else "🟡 Lateral")
+        fuerza = max(p_dict_temp.get(2, 0), p_dict_temp.get(1, 0), p_dict_temp.get(0, 0)) * 100
+        
+        filas.append({
+            "Fecha Sesión Evaluada": f_str,
+            "Precio Cierre": f"${pr_cierre:,.2f} USD",
+            "Pronóstico KNN": etiqueta,
+            "Fuerza Probabilística": f"{fuerza:.1f}%"
+        })
+
+    df_ultimos_5 = pd.DataFrame(filas)
+    st.dataframe(df_ultimos_5, use_container_width=True, hide_index=True)
+
+    # -------------------------------------------------------------
+    # 2. SECCIÓN DE PRONÓSTICO PARA MAÑANA (CON DESENFOQUE SI NO ES PRO)
+    # -------------------------------------------------------------
+    st.markdown("---")
     
-    col1, col2, col3 = st.columns(3)
+    if not es_usuario_pro:
+        st.warning("🔒 **Pronóstico para la Siguiente Sesión Bloqueado:** Ingresa tu clave Pro o elige un plan al pie de la página.")
+        st.markdown('<div class="blur-container">', unsafe_allow_html=True)
 
-    col1.metric("Precio de Cierre Analizado", f"${precio_actual:,.2f} USD", f"{cambio_hoy:+.2f}%")
+    st.subheader(f"📌 Resumen para la Siguiente Sesión: {seleccion_ticker}")
+    st.caption(f"📅 **Datos base de cierre analizados:** {fecha_hoy} | **Proyección generada para:** Siguiente sesión de mercado")
+
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Último Precio de Cierre", f"${precio_actual:,.2f} USD", f"{cambio_hoy:+.2f}% hoy")
 
     if prediccion == 2:
         col2.metric("Pronóstico (Día Siguiente)", "🟢 ALCISTA", "Mayor fuerza compradora")
@@ -155,14 +213,7 @@ else:
 
     col3.metric("Fuerza del Pronóstico", f"{max(prob_alcista, prob_bajista, prob_lateral):.1f}%", "Frente al 33% normal de azar")
 
-    # Sección explicativa de probabilidades
-    st.markdown("---")
-    st.subheader("🎯 Desglose de Probabilidades (¿Por qué este pronóstico?)")
-    st.write(
-        "Al evaluar una acción existen **3 caminos posibles**: subir con fuerza, bajar con fuerza o mantenerse en calma. "
-        "En un escenario puramente al azar, cada camino tendría solo un **33.3%**. Aquí te mostramos cómo se distribuye el 100% de los patrones históricos:"
-    )
-
+    st.subheader("🎯 Desglose de Probabilidades")
     c_up, c_flat, c_down = st.columns(3)
     with c_up:
         st.write(f"🟢 **Probabilidad Alcista: {prob_alcista:.1f}%**")
@@ -174,9 +225,30 @@ else:
         st.write(f"🔴 **Probabilidad Bajista: {prob_bajista:.1f}%**")
         st.progress(int(prob_bajista))
 
-    # Gráfica interactiva de precios
+    st.subheader("💡 Lectura clara para el inversionista")
+    if prediccion == 2:
+        st.success(
+            f"**Predominio Comprador:** De los 50 momentos históricos más parecidos al cierre de hoy ({fecha_hoy}), "
+            f"en el **{prob_alcista:.1f}%** de las ocasiones el precio subió. La balanza estadística favorece posiciones compradoras."
+        )
+    elif prediccion == 1:
+        st.warning(
+            f"**Presión Vendedora:** En el **{prob_bajista:.1f}%** de los escenarios similares la acción corrigió a la baja. "
+            f"Solo un **{prob_alcista:.1f}%** logró subir. Conviene prudencia en compras."
+        )
+    else:
+        st.info(
+            f"**Consolidación / Rango:** La mayor probabilidad (**{prob_lateral:.1f}%**) indica mercado lateral sin catalizador direccional claro."
+        )
+
+    if not es_usuario_pro:
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    # -------------------------------------------------------------
+    # 3. GRÁFICA DE EVOLUCIÓN HISTÓRICA (SIEMPRE VISIBLE)
+    # -------------------------------------------------------------
     st.markdown("---")
-    st.subheader("📊 Evolución del Precio y Tendencia")
+    st.subheader("📊 Evolución del Precio y Tendencias")
 
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=datos_proc.index, y=datos_proc["Close"], mode="lines", name="Precio de Cierre", line=dict(color="#00D4B2", width=2)))
@@ -185,34 +257,77 @@ else:
 
     fig.update_layout(
         template="plotly_dark",
-        height=450,
+        height=420,
         margin=dict(l=20, r=20, t=30, b=20),
         xaxis_title="Fecha",
         yaxis_title="Precio (USD)"
     )
     st.plotly_chart(fig, use_container_width=True)
 
-    # Explicación clara al usuario
-    st.markdown("---")
-    st.subheader("💡 Lectura clara para el inversionista")
-    if prediccion == 2:
-        st.success(
-            f"**Predominio Comprador:** De los 50 momentos históricos más parecidos a la situación evaluada, "
-            f"en el **{prob_alcista:.1f}%** de las ocasiones el precio subió. El restante no es caída directa: solo un "
-            f"**{prob_bajista:.1f}%** cayó y un **{prob_lateral:.1f}%** se mantuvo neutral. La balanza favorece compras."
-        )
-    elif prediccion == 1:
-        st.warning(
-            f"**Precaución:** En el **{prob_bajista:.1f}%** de los escenarios similares la acción corrigió a la baja. "
-            f"Solo un **{prob_alcista:.1f}%** logró subir y un **{prob_lateral:.1f}%** se mantuvo lateral."
-        )
-    else:
-        st.info(
-            f"**Mercado en Espera:** La mayor probabilidad (**{prob_lateral:.1f}%**) indica consolidación. "
-            f"No hay una ventaja clara entre compradores ({prob_alcista:.1f}%) y vendedores ({prob_bajista:.1f}%)."
-        )
+    # -------------------------------------------------------------
+    # 4. TARJETAS DE MEMBRESÍA AL PIE DE PÁGINA
+    # -------------------------------------------------------------
+    if not es_usuario_pro:
+        st.markdown("---")
+        st.subheader("💎 Desbloquea las Señales Diarias en Tiempo Real")
+        st.write("Selecciona el plan que mejor se adapte a tu operativa bursátil para recibir tu clave de acceso inmediata:")
 
-    # Deslinde de responsabilidad legal y ética
+        col_p1, col_p2, col_p3 = st.columns(3)
+
+        with col_p1:
+            st.markdown(
+                """
+                <div class="pricing-card">
+                    <div class="plan-title">Pase Semanal</div>
+                    <div class="plan-price">$50 <span style="font-size:1rem;color:#8a93a6;">MXN</span></div>
+                    <div class="plan-desc">
+                        ✔ <b>Acceso por 5 sesiones bursátiles</b> continuas.<br>
+                        ✔ Señal algorítmica KNN para la siguiente sesión.<br>
+                        ✔ Desglose probabilístico de las 9 acciones tecnológicas.<br>
+                        ✔ Ideal para validar la herramienta en tu operativa semanal.
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+        with col_p2:
+            st.markdown(
+                """
+                <div class="pricing-card">
+                    <div class="plan-title">Pase Quincenal</div>
+                    <div class="plan-price">$75 <span style="font-size:1rem;color:#8a93a6;">MXN</span></div>
+                    <div class="plan-desc">
+                        ✔ <b>Acceso por 10 sesiones bursátiles</b> (2 semanas).<br>
+                        ✔ Ahorro del 25% respecto al plan semanal.<br>
+                        ✔ Actualización diaria al cierre de Wall Street.<br>
+                        ✔ Consulta continua de soporte y tendencias clave.
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+        with col_p3:
+            st.markdown(
+                """
+                <div class="pricing-card-highlight">
+                    <div class="plan-title">⭐ Pase Mensual <span style="font-size:0.8rem;background:#00D4B2;color:#0b0e14;padding:2px 8px;border-radius:10px;">RECOMENDADO</span></div>
+                    <div class="plan-price">$125 <span style="font-size:1rem;color:#8a93a6;">MXN</span></div>
+                    <div class="plan-desc">
+                        ✔ <b>Acceso completo por 1 mes calendario</b> (~22 sesiones).<br>
+                        ✔ <b>Costo equivalente a solo $31.25 MXN por semana</b> (37% de ahorro).<br>
+                        ✔ Señales diarias para todo el radar (NVDA, MSFT, AMD, etc.).<br>
+                        ✔ Prioridad en nuevas acciones y módulos cuantitativos.
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+    # -------------------------------------------------------------
+    # 5. DESLINDE LEGAL
+    # -------------------------------------------------------------
     st.markdown("---")
     st.caption(
         "⚠️ **Aviso Legal y de Responsabilidad:** Esta plataforma es una herramienta tecnológica de análisis estadístico "
