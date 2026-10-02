@@ -12,7 +12,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# Claves de acceso válidas (tu clave maestra permanente incluida)
+# Claves de acceso válidas (incluye tu clave permanente de fundador)
 CLAVES_VALIDAS = ["FOUNDER_MASTER_2026", "RADAR2026", "PRO_MEMBER_50"]
 
 # Lista de acciones disponibles exacta
@@ -34,89 +34,9 @@ if es_usuario_pro:
 elif clave_ingresada:
     st.sidebar.error("❌ Clave no válida")
 else:
-    st.sidebar.info("Modo demostración. Desbloquea la señal de mañana abajo.")
+    st.sidebar.info("Modo libre activo. Desbloquea la señal de mañana al final.")
 
 boton_analizar = st.sidebar.button("🔄 Actualizar Datos y Pronóstico")
-
-# Inyección de estilos CSS limpios y desenfoque garantizado
-css_reglas = """
-<style>
-/* Tarjetas de precios en tema claro, limpias y profesionales */
-.clean-pricing-card {
-    background-color: #ffffff;
-    border: 1px solid #e2e8f0;
-    border-radius: 12px;
-    padding: 24px;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
-    text-align: center;
-    height: 100%;
-    margin-bottom: 20px;
-}
-.clean-pricing-highlight {
-    background-color: #ffffff;
-    border: 2px solid #0284c7;
-    border-radius: 12px;
-    padding: 24px;
-    box-shadow: 0 10px 15px -3px rgba(2, 132, 199, 0.1), 0 4px 6px -2px rgba(2, 132, 199, 0.05);
-    text-align: center;
-    height: 100%;
-    margin-bottom: 20px;
-}
-.badge-rec {
-    background-color: #0284c7;
-    color: #ffffff;
-    font-size: 0.75rem;
-    font-weight: 700;
-    padding: 4px 10px;
-    border-radius: 9999px;
-    display: inline-block;
-    margin-bottom: 8px;
-}
-.price-title {
-    font-size: 1.15rem;
-    font-weight: 700;
-    color: #1e293b;
-    margin-bottom: 8px;
-}
-.price-val {
-    font-size: 2.2rem;
-    font-weight: 800;
-    color: #0f172a;
-    margin-bottom: 12px;
-}
-.price-currency {
-    font-size: 1rem;
-    color: #64748b;
-    font-weight: 500;
-}
-.price-features {
-    font-size: 0.88rem;
-    color: #475569;
-    text-align: left;
-    line-height: 1.6;
-    margin-top: 15px;
-    border-top: 1px solid #f1f5f9;
-    padding-top: 15px;
-}
-</style>
-"""
-
-# Si el usuario NO es pro, aplicamos desenfoque CSS a los contenedores de predicción
-if not es_usuario_pro:
-    css_reglas += """
-    <style>
-    div[data-testid="stMetric"],
-    div[data-testid="stProgress"],
-    div[data-testid="stAlert"] {
-        filter: blur(8px) !important;
-        pointer-events: none !important;
-        user-select: none !important;
-        opacity: 0.45 !important;
-    }
-    </style>
-    """
-
-st.markdown(css_reglas, unsafe_allow_html=True)
 
 st.title("📈 Radar Inteligente de Acciones Tecnológicas")
 st.write(
@@ -205,7 +125,7 @@ else:
     st.dataframe(df_ultimos_5, use_container_width=True, hide_index=True)
 
     # -------------------------------------------------------------
-    # 2. SECCIÓN DE PRONÓSTICO PARA MAÑANA (DESENFOCADO SI NO ES PRO)
+    # 2. PRONÓSTICO PARA MAÑANA (CANDADO / TAPIZADO PARA NO SUSCRIPTORES)
     # -------------------------------------------------------------
     st.markdown("---")
 
@@ -223,54 +143,62 @@ else:
     cambio_hoy = ((precio_actual - precio_anterior) / precio_anterior) * 100
     fecha_hoy = datos_crudos.index[-1].strftime("%Y-%m-%d")
 
-    if not es_usuario_pro:
-        st.warning("🔒 **Pronóstico de Hoy para la Siguiente Sesión Reservado:** Desbloquea la señal nítida ingresando tu clave Pro o adquiere una membresía abajo.")
-
     st.subheader(f"📌 Resumen para la Siguiente Sesión: {seleccion_ticker}")
     st.caption(f"📅 **Datos base de cierre analizados:** {fecha_hoy} | **Proyección generada para:** Siguiente sesión de mercado")
 
     col1, col2, col3 = st.columns(3)
     col1.metric("Último Precio de Cierre", f"${precio_actual:,.2f} USD", f"{cambio_hoy:+.2f}% hoy")
 
-    if prediccion == 2:
-        col2.metric("Pronóstico (Día Siguiente)", "🟢 ALCISTA", "Mayor fuerza compradora")
-    elif prediccion == 1:
-        col2.metric("Pronóstico (Día Siguiente)", "🔴 BAJISTA", "Presión vendedora")
+    if es_usuario_pro:
+        # VISIÓN SUSCRIPTOR PRO
+        if prediccion == 2:
+            col2.metric("Pronóstico (Día Siguiente)", "🟢 ALCISTA", "Mayor fuerza compradora")
+        elif prediccion == 1:
+            col2.metric("Pronóstico (Día Siguiente)", "🔴 BAJISTA", "Presión vendedora")
+        else:
+            col2.metric("Pronóstico (Día Siguiente)", "🟡 LATERAL", "Sin tendencia clara")
+
+        col3.metric("Fuerza del Pronóstico", f"{max(prob_alcista, prob_bajista, prob_lateral):.1f}%", "Frente al 33% normal de azar")
+
+        st.subheader("🎯 Desglose de Probabilidades")
+        c_up, c_flat, c_down = st.columns(3)
+        with c_up:
+            st.write(f"🟢 **Probabilidad Alcista: {prob_alcista:.1f}%**")
+            st.progress(int(prob_alcista))
+        with c_flat:
+            st.write(f"🟡 **Probabilidad Lateral / Rango: {prob_lateral:.1f}%**")
+            st.progress(int(prob_lateral))
+        with c_down:
+            st.write(f"🔴 **Probabilidad Bajista: {prob_bajista:.1f}%**")
+            st.progress(int(prob_bajista))
+
+        st.subheader("💡 Lectura clara para el inversionista")
+        if prediccion == 2:
+            st.success(
+                f"**Predominio Comprador:** De los 50 momentos históricos más parecidos al cierre evaluado ({fecha_hoy}), "
+                f"en el **{prob_alcista:.1f}%** de las ocasiones el precio subió. La balanza estadística favorece compras."
+            )
+        elif prediccion == 1:
+            st.warning(
+                f"**Presión Vendedora:** En el **{prob_bajista:.1f}%** de los escenarios similares la acción corrigió a la baja. "
+                f"Solo un **{prob_alcista:.1f}%** logró subir. Conviene cautela."
+            )
+        else:
+            st.info(
+                f"**Consolidación / Rango:** La mayor probabilidad (**{prob_lateral:.1f}%**) indica mercado lateral sin catalizador claro."
+            )
     else:
-        col2.metric("Pronóstico (Día Siguiente)", "🟡 LATERAL", "Sin tendencia clara")
+        # VISIÓN PÚBLICA (BLOQUEADA Y TAPADA CON CANDADO)
+        col2.metric("Pronóstico (Día Siguiente)", "🔒 BLOQUEADO", "Exclusivo Suscriptores")
+        col3.metric("Fuerza del Pronóstico", "🔒 OCULTO", "Requiere Clave Pro")
 
-    col3.metric("Fuerza del Pronóstico", f"{max(prob_alcista, prob_bajista, prob_lateral):.1f}%", "Frente al 33% normal de azar")
-
-    st.subheader("🎯 Desglose de Probabilidades")
-    c_up, c_flat, c_down = st.columns(3)
-    with c_up:
-        st.write(f"🟢 **Probabilidad Alcista: {prob_alcista:.1f}%**")
-        st.progress(int(prob_alcista))
-    with c_flat:
-        st.write(f"🟡 **Probabilidad Lateral / Rango: {prob_lateral:.1f}%**")
-        st.progress(int(prob_lateral))
-    with c_down:
-        st.write(f"🔴 **Probabilidad Bajista: {prob_bajista:.1f}%**")
-        st.progress(int(prob_bajista))
-
-    st.subheader("💡 Lectura clara para el inversionista")
-    if prediccion == 2:
-        st.success(
-            f"**Predominio Comprador:** De los 50 momentos históricos más parecidos al cierre evaluado ({fecha_hoy}), "
-            f"en el **{prob_alcista:.1f}%** de las ocasiones el precio subió. La balanza favorece compras."
-        )
-    elif prediccion == 1:
-        st.warning(
-            f"**Presión Vendedora:** En el **{prob_bajista:.1f}%** de los escenarios similares la acción corrigió a la baja. "
-            f"Solo un **{prob_alcista:.1f}%** logró subir. Conviene prudencia en compras."
-        )
-    else:
-        st.info(
-            f"**Consolidación / Rango:** La mayor probabilidad (**{prob_lateral:.1f}%**) indica mercado en pausa sin catalizador direccional."
+        st.info("🔒 **Desglose de Probabilidades y Lectura Algorítmica Reservadas:** El cálculo predictivo para la jornada de mañana está resguardado para miembros activos.")
+        st.markdown(
+            "> 🛡️ **Contenido Protegido:** Ingresa tu clave en la barra lateral o suscríbete a uno de los planes al pie de la página para desbloquear la proyección direccional y las probabilidades exactas."
         )
 
     # -------------------------------------------------------------
-    # 3. GRÁFICA DE EVOLUCIÓN HISTÓRICA (SIEMPRE NÍTIDA Y VISIBLE)
+    # 3. GRÁFICA DE EVOLUCIÓN HISTÓRICA (SIEMPRE VISIBLE)
     # -------------------------------------------------------------
     st.markdown("---")
     st.subheader("📊 Evolución del Precio y Tendencias")
@@ -290,7 +218,7 @@ else:
     st.plotly_chart(fig, use_container_width=True)
 
     # -------------------------------------------------------------
-    # 4. TARJETAS DE MEMBRESÍA LIMPIAS AL PIE DE PÁGINA
+    # 4. TARJETAS DE MEMBRESÍA LIMPIAS Y FORMATEADAS
     # -------------------------------------------------------------
     if not es_usuario_pro:
         st.markdown("---")
@@ -300,56 +228,47 @@ else:
         col_p1, col_p2, col_p3 = st.columns(3)
 
         with col_p1:
-            st.markdown(
-                """
-                <div class="clean-pricing-card">
-                    <div class="price-title">Pase Semanal</div>
-                    <div class="price-val">$50 <span class="price-currency">MXN</span></div>
-                    <div class="price-features">
-                        ✔ <b>5 sesiones bursátiles completas</b><br>
-                        ✔ Señal algorítmica KNN nítida para la sesión de mañana<br>
-                        ✔ Desglose probabilístico de las 9 acciones tecnológicas<br>
-                        ✔ Ideal para probar el sistema esta semana
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
+            with st.container(border=True):
+                st.subheader("Pase Semanal")
+                st.markdown("### $50 MXN")
+                st.caption("5 sesiones hábiles de mercado")
+                st.markdown(
+                    """
+                    * ✅ Señal algorítmica KNN para la siguiente sesión
+                    * ✅ Desglose probabilístico de las 9 tecnológicas
+                    * ✅ Acceso inmediato por 1 semana completa
+                    * 🎯 Ideal para validar la herramienta
+                    """
+                )
 
         with col_p2:
-            st.markdown(
-                """
-                <div class="clean-pricing-card">
-                    <div class="price-title">Pase Quincenal</div>
-                    <div class="price-val">$75 <span class="price-currency">MXN</span></div>
-                    <div class="price-features">
-                        ✔ <b>10 sesiones bursátiles</b> (2 semanas de trading)<br>
-                        ✔ <b>25% de ahorro</b> frente a la tarifa semanal<br>
-                        ✔ Actualización diaria automática al cierre de mercado<br>
-                        ✔ Consulta continua de tendencias y fuerza del pronóstico
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
+            with st.container(border=True):
+                st.subheader("Pase Quincenal")
+                st.markdown("### $75 MXN")
+                st.caption("10 sesiones hábiles de mercado")
+                st.markdown(
+                    """
+                    * ✅ **Ahorro del 25%** frente al plan semanal
+                    * ✅ Actualización diaria al cierre de Wall Street
+                    * ✅ Acceso continuo por 2 semanas
+                    * 🎯 Para swing traders activos
+                    """
+                )
 
         with col_p3:
-            st.markdown(
-                """
-                <div class="clean-pricing-highlight">
-                    <div class="badge-rec">⭐ RECOMENDADO</div>
-                    <div class="price-title">Pase Mensual</div>
-                    <div class="price-val">$125 <span class="price-currency">MXN</span></div>
-                    <div class="price-features">
-                        ✔ <b>Acceso total por 1 mes</b> (~22 sesiones de mercado)<br>
-                        ✔ <b>Solo $31.25 MXN por semana</b> (37% de descuento)<br>
-                        ✔ Señales diarias para todas las acciones (NVDA, AMD, META, etc.)<br>
-                        ✔ Acceso garantizado y soporte directo de actualización
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
+            with st.container(border=True):
+                st.markdown("**:blue[⭐ RECOMENDADO]**")
+                st.subheader("Pase Mensual")
+                st.markdown("### $125 MXN")
+                st.caption("Acceso continuo por 1 mes calendario")
+                st.markdown(
+                    """
+                    * ✅ **Costo equivalente a solo $31.25 MXN/semana**
+                    * ✅ **37% de descuento total**
+                    * ✅ Señales diarias para todo el radar (NVDA, AMD, etc.)
+                    * ✅ Máxima consistencia operativa
+                    """
+                )
 
     # -------------------------------------------------------------
     # 5. DESLINDE LEGAL
