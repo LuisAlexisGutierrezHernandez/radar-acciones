@@ -4,6 +4,7 @@ import numpy as np
 import yfinance as yf
 from sklearn.neighbors import KNeighborsClassifier
 import plotly.graph_objects as go
+from datetime import timedelta
 
 # Configuración visual de la página
 st.set_page_config(
@@ -12,19 +13,48 @@ st.set_page_config(
     layout="wide"
 )
 
+# Claves de acceso válidas (puedes agregar o cambiar las que tú entregues a tus suscriptores)
+CLAVES_VALIDAS = ["RADAR2026", "PRO_MEMBER_50", "ALPHA_QUANT"]
+
 st.title("📈 Radar Inteligente de Acciones Tecnológicas")
 st.write(
     "Esta plataforma analiza el comportamiento reciente de las principales empresas "
     "tecnológicas y proyecta su tendencia más probable para la siguiente jornada con base en patrones históricos."
 )
 
-# Lista de acciones disponibles
+# Lista de acciones disponibles (tu selección original exacta)
 tickers_default = ["NVDA", "MU", "AMD", "INTC", "AVGO", "GOOG", "META", "MSFT", "ORCL"]
 
 # Barra lateral
 st.sidebar.header("⚙️ Configuración")
 seleccion_ticker = st.sidebar.selectbox("Selecciona la acción a revisar:", tickers_default)
 dias_analisis = st.sidebar.slider("Años de historia para analizar:", min_value=2, max_value=5, value=5)
+
+# Control de membresía / Clave de acceso
+st.sidebar.markdown("---")
+st.sidebar.subheader("🔐 Acceso Suscriptor Pro")
+clave_ingresada = st.sidebar.text_input("Ingresa tu Clave de Acceso:", type="password", placeholder="Clave de suscriptor")
+
+es_usuario_pro = clave_ingresada in CLAVES_VALIDAS
+
+if not es_usuario_pro:
+    if clave_ingresada:
+        st.sidebar.error("❌ Clave incorrecta o expirada.")
+    else:
+        st.sidebar.info("💡 Estás en **Modo Demostración** con datos históricos reales.")
+    
+    st.sidebar.markdown("### 💎 Planes de Membresía")
+    st.sidebar.markdown(
+        """
+        * **Pase 1 Semana:** $50 MXN  
+        * **Pase 2 Semanas:** $75 MXN  
+        * **Pase Mensual:** $125 MXN ⭐ *(Recomendado)*  
+        
+        Adquiere tu clave y desbloquea las señales en tiempo real para la sesión de mañana.
+        """
+    )
+else:
+    st.sidebar.success("✅ Suscripción Pro Activa: Datos en Vivo")
 
 boton_analizar = st.sidebar.button("🔄 Actualizar Datos y Pronóstico")
 
@@ -63,13 +93,29 @@ def calcular_indicadores(df):
 
     return d.dropna().copy()
 
-with st.spinner("Consultando datos en tiempo real de Wall Street..."):
+with st.spinner("Consultando datos de mercado..."):
     datos_crudos = descargar_datos(seleccion_ticker, dias_analisis)
 
 if len(datos_crudos) < 200:
     st.error("No hay suficientes datos disponibles para esta empresa.")
 else:
-    datos_proc = calcular_indicadores(datos_crudos)
+    # Corte histórico real para la versión pública / demo
+    if not es_usuario_pro:
+        # Se recortan las últimas 10 sesiones hábiles reales
+        datos_para_modelo = datos_crudos.iloc[:-10].copy()
+        fecha_evaluada = datos_para_modelo.index[-1].strftime("%Y-%m-%d")
+        
+        st.warning(
+            f"👀 **Modo Demostración Activo (Auditoría Histórica Real):** "
+            f"Estás viendo el análisis real generado al cierre del **{fecha_evaluada}**. "
+            f"Para consultar las proyecciones en tiempo real para la sesión de mañana, ingresa tu clave en el panel izquierdo."
+        )
+    else:
+        datos_para_modelo = datos_crudos.copy()
+        fecha_evaluada = datos_para_modelo.index[-1].strftime("%Y-%m-%d")
+        st.info(f"⚡ **Modo Suscriptor Activo:** Datos actualizados al cierre de mercado del **{fecha_evaluada}**.")
+
+    datos_proc = calcular_indicadores(datos_para_modelo)
     features = ["Slope_SMA_40", "Slope_SMA_80", "Slope_SMA_160", "RSI", "Relative_Range"]
 
     X = datos_proc[features]
@@ -88,15 +134,17 @@ else:
     prob_bajista = prob_dict.get(1, 0.0) * 100
     prob_lateral = prob_dict.get(0, 0.0) * 100
 
-    precio_actual = float(datos_crudos["Close"].iloc[-1])
-    precio_anterior = float(datos_crudos["Close"].iloc[-2])
+    precio_actual = float(datos_para_modelo["Close"].iloc[-1])
+    precio_anterior = float(datos_para_modelo["Close"].iloc[-2])
     cambio_hoy = ((precio_actual - precio_anterior) / precio_anterior) * 100
 
     # Tarjetas visuales de resumen
     st.subheader(f"📌 Resumen para la Siguiente Sesión: {seleccion_ticker}")
+    st.caption(f"📅 **Datos de cierre base:** {fecha_evaluada} | **Proyección generada para:** Siguiente sesión hábil")
+    
     col1, col2, col3 = st.columns(3)
 
-    col1.metric("Último Precio", f"${precio_actual:,.2f} USD", f"{cambio_hoy:+.2f}% hoy")
+    col1.metric("Precio de Cierre Analizado", f"${precio_actual:,.2f} USD", f"{cambio_hoy:+.2f}%")
 
     if prediccion == 2:
         col2.metric("Pronóstico (Día Siguiente)", "🟢 ALCISTA", "Mayor fuerza compradora")
@@ -149,7 +197,7 @@ else:
     st.subheader("💡 Lectura clara para el inversionista")
     if prediccion == 2:
         st.success(
-            f"**Predominio Comprador:** De los 50 momentos históricos más parecidos a la situación de hoy, "
+            f"**Predominio Comprador:** De los 50 momentos históricos más parecidos a la situación evaluada, "
             f"en el **{prob_alcista:.1f}%** de las ocasiones el precio subió. El restante no es caída directa: solo un "
             f"**{prob_bajista:.1f}%** cayó y un **{prob_lateral:.1f}%** se mantuvo neutral. La balanza favorece compras."
         )
