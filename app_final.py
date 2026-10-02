@@ -2,438 +2,554 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import yfinance as yf
-from sklearn.neighbors import KNeighborsClassifier
-import plotly.express as px
 import plotly.graph_objects as go
-from datetime import datetime, time, timedelta
-import pytz
-import json
-import os
-import secrets
+import plotly.express as px
+from sklearn.neighbors import KNeighborsClassifier
+from xgboost import XGBClassifier
+from sklearn.metrics import accuracy_score
+from datetime import datetime
 
-# ==========================================
-# CONFIGURACIÓN DE PÁGINA (ESTILO FINVIZ DARK)
-# ==========================================
+# =========================================================
+# CONFIGURACIÓN GENERAL
+# =========================================================
 st.set_page_config(
-    page_title="MarketVision AI - Finviz Edition",
+    page_title="AI Stock Predictor | Predicción Bursátil",
     page_icon="📈",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
 )
 
-# Estilos CSS personalizados inspirados en Finviz Dark Mode
+# =========================================================
+# CSS PERSONALIZADO (estética profesional)
+# =========================================================
 st.markdown("""
 <style>
-    /* Fondo general estilo Finviz */
-    .stApp {
-        background-color: #12151e;
-        color: #e4e7eb;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    /* Fondo y tipografía */
+    html, body, [class*="css"] {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     }
-    
-    /* Barra lateral */
-    section[data-testid="stSidebar"] {
-        background-color: #1a1e2c;
-        border-right: 1px solid #2a3142;
+    .main {
+        background: linear-gradient(180deg, #0E1117 0%, #131A26 100%);
     }
-    
-    /* Tarjetas y contenedores */
-    .metric-card {
-        background: #1b2030;
-        border: 1px solid #2d3648;
-        border-radius: 8px;
-        padding: 16px;
-        margin-bottom: 12px;
+
+    /* Header principal */
+    .hero {
+        background: linear-gradient(135deg, #1A1F2E 0%, #0E1117 100%);
+        border: 1px solid #2A3142;
+        border-radius: 16px;
+        padding: 32px 40px;
+        margin-bottom: 24px;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.35);
     }
-    
-    /* Botones estilo Finviz */
-    .stButton>button {
-        background-color: #2563eb;
-        color: white;
-        border: none;
-        border-radius: 4px;
-        font-weight: 600;
-        width: 100%;
+    .hero h1 {
+        color: #FAFAFA;
+        font-size: 2.2rem;
+        font-weight: 700;
+        margin: 0 0 8px 0;
+        letter-spacing: -0.5px;
     }
-    .stButton>button:hover {
-        background-color: #1d4ed8;
+    .hero p {
+        color: #9CA3AF;
+        font-size: 1.05rem;
+        margin: 0;
     }
-    
-    /* Precios y planes */
-    .pricing-badge {
-        background-color: #20273a;
-        border-left: 4px solid #10b981;
-        padding: 12px;
-        margin: 8px 0;
-        border-radius: 4px;
+    .hero .accent { color: #00D4AA; }
+
+    /* Tarjetas KPI */
+    .kpi-card {
+        background: #1A1F2E;
+        border: 1px solid #2A3142;
+        border-radius: 14px;
+        padding: 20px 22px;
+        text-align: left;
+        height: 100%;
+        transition: transform 0.2s;
     }
-    
-    /* Disclaimer educativo */
-    .disclaimer-box {
-        background-color: #1e2433;
-        border: 1px solid #4b5563;
-        border-radius: 6px;
-        padding: 12px;
+    .kpi-card:hover { transform: translateY(-2px); border-color: #00D4AA; }
+    .kpi-label {
+        color: #9CA3AF;
         font-size: 0.85rem;
-        color: #9ca3af;
-        margin-top: 25px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 6px;
     }
+    .kpi-value {
+        color: #FAFAFA;
+        font-size: 1.8rem;
+        font-weight: 700;
+        margin: 0;
+    }
+    .kpi-sub { color: #6B7280; font-size: 0.8rem; margin-top: 4px; }
+
+    /* Badges de señal */
+    .badge {
+        display: inline-block;
+        padding: 6px 14px;
+        border-radius: 999px;
+        font-weight: 600;
+        font-size: 0.85rem;
+    }
+    .badge-bull { background: rgba(0, 212, 170, 0.15); color: #00D4AA; border: 1px solid #00D4AA; }
+    .badge-bear { background: rgba(239, 68, 68, 0.15); color: #EF4444; border: 1px solid #EF4444; }
+    .badge-flat { background: rgba(234, 179, 8, 0.15); color: #EAB308; border: 1px solid #EAB308; }
+
+    /* Secciones */
+    .section-title {
+        color: #FAFAFA;
+        font-size: 1.4rem;
+        font-weight: 700;
+        margin: 24px 0 12px 0;
+        padding-left: 12px;
+        border-left: 4px solid #00D4AA;
+    }
+
+    /* Sidebar */
+    section[data-testid="stSidebar"] {
+        background: #0B0F16;
+        border-right: 1px solid #2A3142;
+    }
+
+    /* Botones */
+    .stButton > button {
+        background: linear-gradient(135deg, #00D4AA 0%, #00A88A 100%);
+        color: #0E1117;
+        border: none;
+        border-radius: 10px;
+        padding: 12px 24px;
+        font-weight: 700;
+        font-size: 1rem;
+        width: 100%;
+        transition: all 0.2s;
+    }
+    .stButton > button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 20px rgba(0, 212, 170, 0.35);
+    }
+
+    /* DataFrame */
+    [data-testid="stDataFrame"] {
+        border-radius: 12px;
+        overflow: hidden;
+        border: 1px solid #2A3142;
+    }
+
+    /* Ocultar branding de Streamlit */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
 </style>
 """, unsafe_allow_html=True)
 
-TICKERS = ["NVDA", "MU", "AMD", "INTC", "AVGO", "GOOG", "META", "MSFT", "ORCL"]
-ADMIN_KEY = "ADMIN-MASTER-PERMANENT-2026"
-LICENSES_FILE = "licencias.json"
-CDMX_TZ = pytz.timezone("America/Mexico_City")
 
-# ==========================================
-# GESTIÓN Y REGLAS DE LICENCIAS (DÍAS HÁBILES)
-# ==========================================
-def init_licenses_file():
-    """Genera las 100 claves por plan si no existen previamente."""
-    if not os.path.exists(LICENSES_FILE):
-        data = {"keys": {}}
-        plans = {
-            "5_DIAS": ("SEM", 5),
-            "10_DIAS": ("QUIN", 10),
-            "21_DIAS": ("MES", 21)
-        }
-        for plan_name, (prefix, days) in plans.items():
-            for _ in range(100):
-                code = f"{prefix}-{secrets.token_hex(4).upper()}"
-                data["keys"][code] = {
-                    "plan": plan_name,
-                    "dias_habiles": days,
-                    "active": False,
-                    "email": None,
-                    "fecha_activacion": None,
-                    "fecha_vencimiento": None
-                }
-        with open(LICENSES_FILE, "w") as f:
-            json.dump(data, f, indent=2)
+# =========================================================
+# FUNCIONES CORE (tu lógica del notebook)
+# =========================================================
+DEFAULT_TICKERS = ["NVDA", "MU", "AMD", "INTC", "AVGO", "GOOG", "META", "MSFT", "ORCL"]
+FEATURES = ["Slope_SMA_40", "Slope_SMA_80", "Slope_SMA_160", "RSI", "Relative_Range"]
+LABEL_MAP = {2: "ALCISTA", 1: "BAJISTA", 0: "LATERAL"}
 
-def load_licenses():
-    init_licenses_file()
-    with open(LICENSES_FILE, "r") as f:
-        return json.load(f)
 
-def save_licenses(data):
-    with open(LICENSES_FILE, "w") as f:
-        json.dump(data, f, indent=2)
+@st.cache_data(show_spinner=False, ttl=3600)
+def download_data(tickers, period="5y"):
+    data = yf.download(tickers, period=period, interval="1d",
+                       group_by="ticker", progress=False, auto_adjust=True)
+    return data
 
-def calculate_expiration_date(start_dt, business_days_needed):
-    """
-    Calcula fecha de vencimiento según reglas:
-    - Corte a las 2:00 PM CDMX. Si se envía después de las 2:00 PM o en fin de semana,
-      empieza a contar a partir del siguiente día hábil (lunes si es fin de semana).
-    """
-    current = start_dt
-    # Si pasa de las 2:00 PM o es fin de semana (sábado=5, domingo=6)
-    if current.time() >= time(14, 0) or current.weekday() >= 5:
-        current = current + timedelta(days=1)
-        current = datetime.combine(current.date(), time(9, 0))
-        current = CDMX_TZ.localize(current)
 
-    # Asegurarse de que el primer día de conteo sea hábil
-    while current.weekday() >= 5:
-        current += timedelta(days=1)
+def clean_stock_data(df):
+    data = df.dropna().copy()
+    data = data[(data["Volume"] > 0) & (data["High"] != data["Low"])].copy()
+    return data
 
-    counted_days = 0
-    test_day = current
-    while counted_days < business_days_needed:
-        if test_day.weekday() < 5:  # Lunes a Viernes
-            counted_days += 1
-            if counted_days == business_days_needed:
-                break
-        test_day += timedelta(days=1)
-    
-    # Vence al cierre de ese día hábil (23:59:59)
-    expiration = datetime.combine(test_day.date(), time(23, 59, 59))
-    return CDMX_TZ.localize(expiration)
 
-def validate_user_access(email, key):
-    email = email.strip().lower()
-    key = key.strip()
-    
-    # 1. Acceso de Administrador Permanente
-    if key == ADMIN_KEY:
-        return True, "Acceso Maestro Permanente Activo", "Ilimitado"
+def create_features_and_target(df):
+    d = df.copy()
+    d["SMA_40"] = d["Close"].rolling(40).mean()
+    d["SMA_80"] = d["Close"].rolling(80).mean()
+    d["SMA_160"] = d["Close"].rolling(160).mean()
 
-    licenses = load_licenses()["keys"]
-    if key not in licenses:
-        return False, "La clave de acceso ingresada no existe.", None
+    d["Slope_SMA_40"] = d["SMA_40"].pct_change(5)
+    d["Slope_SMA_80"] = d["SMA_80"].pct_change(5)
+    d["Slope_SMA_160"] = d["SMA_160"].pct_change(5)
 
-    lic = licenses[key]
-    now_cdmx = datetime.now(CDMX_TZ)
+    delta = d["Close"].diff()
+    gain = delta.where(delta > 0, 0).rolling(14).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
+    rs = gain / (loss + 1e-9)
+    d["RSI"] = 100 - (100 / (1 + rs))
 
-    # 2. Si la clave aún no está activada, se activa ligada al correo
-    if not lic["active"]:
-        lic["active"] = True
-        lic["email"] = email
-        lic["fecha_activacion"] = now_cdmx.strftime("%Y-%m-%d %H:%M:%S")
-        exp_dt = calculate_expiration_date(now_cdmx, lic["dias_habiles"])
-        lic["fecha_vencimiento"] = exp_dt.strftime("%Y-%m-%d %H:%M:%S")
-        
-        full_data = load_licenses()
-        full_data["keys"][key] = lic
-        save_licenses(full_data)
-        
-        return True, f"Clave activada con éxito para {email}.", lic["fecha_vencimiento"]
+    d["Relative_Range"] = (d["High"] - d["Low"]) / d["Close"]
 
-    # 3. Si ya está activa, verificar que pertenezca al mismo correo
-    if lic["email"] != email:
-        return False, "Esta clave ya fue activada con otra cuenta de correo.", None
+    future_return = d["Close"].shift(-3).pct_change(3)
+    d["Target"] = 0
+    d.loc[future_return > 0.01, "Target"] = 2
+    d.loc[future_return < -0.01, "Target"] = 1
 
-    # 4. Verificar vigencia
-    exp_dt = CDMX_TZ.localize(datetime.strptime(lic["fecha_vencimiento"], "%Y-%m-%d %H:%M:%S"))
-    if now_cdmx > exp_dt:
-        return False, f"Tu suscripción venció el {lic['fecha_vencimiento']} (CDMX).", None
+    d = d.dropna().copy()
+    return d
 
-    return True, "Suscripción activa.", lic["fecha_vencimiento"]
 
-# ==========================================
-# MOTOR DE MACHINE LEARNING & DATOS
-# ==========================================
-@st.cache_data(ttl=3600)
-def fetch_and_clean_data(tickers_list):
-    raw_data = yf.download(tickers_list, period="5y", interval="1d", group_by="ticker", progress=False)
-    cleaned = {}
-    for t in tickers_list:
-        df = raw_data[t].dropna().copy()
-        df = df[(df["Volume"] > 0) & (df["High"] != df["Low"])].copy()
-        
-        # Medias y Pendientes
-        df["SMA_40"] = df["Close"].rolling(window=40).mean()
-        df["SMA_80"] = df["Close"].rolling(window=80).mean()
-        df["SMA_160"] = df["Close"].rolling(window=160).mean()
-        df["Slope_SMA_40"] = df["SMA_40"].pct_change(5)
-        df["Slope_SMA_80"] = df["SMA_80"].pct_change(5)
-        df["Slope_SMA_160"] = df["SMA_160"].pct_change(5)
+@st.cache_data(show_spinner=False, ttl=3600)
+def process_all_tickers(tickers, period="5y"):
+    raw = download_data(tuple(tickers), period)
+    processed = {}
+    for t in tickers:
+        try:
+            sub = raw[t] if isinstance(raw.columns, pd.MultiIndex) else raw
+            cleaned = clean_stock_data(sub)
+            if len(cleaned) > 200:
+                processed[t] = create_features_and_target(cleaned)
+        except Exception as e:
+            st.warning(f"No se pudo procesar {t}: {e}")
+    return processed
 
-        # RSI
-        delta = df["Close"].diff()
-        gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-        loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-        rs = gain / (loss + 1e-9)
-        df["RSI"] = 100 - (100 / (1 + rs))
 
-        # Rango
-        df["Relative_Range"] = (df["High"] - df["Low"]) / df["Close"]
+def train_and_evaluate(df_stock):
+    X = df_stock[FEATURES]
+    y = df_stock["Target"]
+    split = int(len(df_stock) * 0.8)
+    X_tr, X_te = X.iloc[:split], X.iloc[split:]
+    y_tr, y_te = y.iloc[:split], y.iloc[split:]
 
-        # Variación diaria reciente (para mapa de calor Finviz)
-        df["Pct_Change_Today"] = df["Close"].pct_change() * 100
+    knn = KNeighborsClassifier(n_neighbors=50)
+    knn.fit(X_tr, y_tr)
+    acc_knn = accuracy_score(y_te, knn.predict(X_te))
 
-        # Target a 3 días
-        future_return = df["Close"].shift(-3).pct_change(3)
-        df["Target"] = 0
-        df.loc[future_return > 0.01, "Target"] = 2
-        df.loc[future_return < -0.01, "Target"] = 1
+    xgb = XGBClassifier(n_estimators=100, max_depth=3, learning_rate=0.05,
+                        random_state=42, verbosity=0)
+    xgb.fit(X_tr, y_tr)
+    acc_xgb = accuracy_score(y_te, xgb.predict(X_te))
 
-        cleaned[t] = df.dropna().copy()
-    return cleaned
+    acc_majority = y_te.value_counts(normalize=True).iloc[0]
 
-def compute_market_forecast(processed_data):
-    features = ["Slope_SMA_40", "Slope_SMA_80", "Slope_SMA_160", "RSI", "Relative_Range"]
-    label_friendly = {
-        2: "Subida Estimada (+1% o más)",
-        1: "Caída Estimada (-1% o más)",
-        0: "Movimiento Neutral / Sin gran cambio"
+    return {
+        "knn_acc": acc_knn,
+        "xgb_acc": acc_xgb,
+        "majority_acc": acc_majority,
+        "best": "KNN" if acc_knn >= acc_xgb else "XGBoost",
+        "xgb_model": xgb,
     }
-    
-    rows = []
-    for t in TICKERS:
-        df = processed_data[t]
-        X_all = df[features]
-        y_all = df["Target"]
 
-        model = KNeighborsClassifier(n_neighbors=50)
-        model.fit(X_all, y_all)
 
-        last_row = X_all.iloc[[-1]]
-        pred = model.predict(last_row)[0]
-        prob = model.predict_proba(last_row)[0].max()
-        
-        last_price = df["Close"].iloc[-1]
-        pct_today = df["Pct_Change_Today"].iloc[-1]
+def predict_signal(df_stock):
+    X_all = df_stock[FEATURES]
+    y_all = df_stock["Target"]
+    model = KNeighborsClassifier(n_neighbors=50)
+    model.fit(X_all, y_all)
 
-        rows.append({
-            "Acción": t,
-            "Último Precio": f"${last_price:.2f}",
-            "Rendimiento Diario": pct_today,
-            "Pronóstico para la Próxima Sesión": label_friendly[pred],
-            "Nivel de Seguridad del Modelo": f"{prob*100:.1f}%",
-            "Codigo_Senal": pred
-        })
-    return pd.DataFrame(rows)
+    latest = X_all.iloc[[-1]]
+    pred = model.predict(latest)[0]
+    probs = model.predict_proba(latest)[0]
+    return LABEL_MAP[pred], probs.max(), df_stock.index[-1]
 
-# ==========================================
-# BARRA LATERAL: LOGIN Y SUSCRIPCIONES
-# ==========================================
-init_licenses_file()
 
-with st.sidebar:
-    st.image("https://finviz.com/favicon.ico", width=28)
-    st.title("Acceso & Cuenta")
-    
-    user_email = st.text_input("Correo Electrónico:", placeholder="tunombre@ejemplo.com")
-    user_key = st.text_input("Clave de Licencia:", type="password", placeholder="Ingresa tu clave")
-    
-    is_authenticated = False
-    status_msg = ""
-    expiration_date = None
-
-    if st.button("Iniciar Sesión"):
-        if not user_email or not user_key:
-            st.error("Por favor ingresa tu correo y tu clave.")
-        else:
-            is_authenticated, status_msg, expiration_date = validate_user_access(user_email, user_key)
-            if is_authenticated:
-                st.session_state["auth"] = True
-                st.session_state["email"] = user_email
-                st.session_state["exp"] = expiration_date
-                st.success("Sesión iniciada con éxito")
-            else:
-                st.error(status_msg)
-                
-    if st.session_state.get("auth", False):
-        is_authenticated = True
-        st.markdown(f"**Usuario:** `{st.session_state.get('email')}`")
-        st.markdown(f"**Vencimiento:** `{st.session_state.get('exp')}`")
-        if st.button("Cerrar Sesión"):
-            st.session_state.clear()
-            st.rerun()
-
-    st.markdown("---")
-    st.subheader("💳 Planes de Suscripción")
-    st.markdown("""
-    <div class="pricing-badge">
-        <b>Plan 1 Semana (5 días bursátiles):</b> $50 MXN
-    </div>
-    <div class="pricing-badge">
-        <b>Plan 2 Semanas (10 días bursátiles):</b> $75 MXN
-    </div>
-    <div class="pricing-badge">
-        <b>Plan 1 Mes (~21 días bursátiles):</b> $125 MXN
-    </div>
-    """, unsafe_allow_html=True)
-    
-    st.markdown("### 📲 ¿Cómo contratar?")
-    st.markdown("""
-    1. Envía un mensaje por WhatsApp al:
-       **[+52 56 5019 7036](https://wa.me/525650197036)**
-    2. Solicita la CLABE interbancaria para transferir según tu plan preferido.
-    3. Al confirmar tu pago recibirás tu clave única e intransferible.
-    """)
-
-# ==========================================
-# PANEL PRINCIPAL
-# ==========================================
-st.markdown("## 📊 Monitor de Mercado & Mapa de Calor (Estilo Finviz)")
-st.caption("Visualización clara del comportamiento reciente de las principales empresas tecnológicas y predicciones cuantitativas inteligentes.")
-
-with st.spinner("Sincronizando datos de mercado en tiempo real..."):
-    data_dict = fetch_and_clean_data(TICKERS)
-    forecast_df = compute_market_forecast(data_dict)
-
-# ------------------------------------------
-# MAPA DE CALOR ESTILO FINVIZ (ROJO A VERDE INTENSO)
-# ------------------------------------------
-st.subheader("🗺️ Mapa de Rendimiento Diario")
-st.markdown("Representa el desempeño de hoy: verde para ganancias y rojo para caídas, tal como en Finviz[cite: 2, 3].")
-
-# Ajuste de escala idéntico a Finviz: -3% o menos (rojo intenso) a +3% o más (verde intenso)
-fig_map = px.treemap(
-    forecast_df,
-    path=[px.Constant("Portafolio Tecnológico"), "Acción"],
-    values=[1] * len(forecast_df),  # Bloques de tamaño uniforme y limpio
-    color="Rendimiento Diario",
-    color_continuous_scale=[
-        [0.0, "#f63538"],    # Rojo intenso Finviz (-3% o inferior)[cite: 3]
-        [0.35, "#8b2c34"],   # Rojo intermedio (-1%)[cite: 3]
-        [0.5, "#303649"],    # Neutro / Gris azulado (0%)[cite: 3]
-        [0.65, "#266b44"],   # Verde oscuro (+1%)[cite: 3]
-        [1.0, "#00c853"]     # Verde intenso Finviz (+3% o mayor)[cite: 3]
-    ],
-    range_color=[-3.0, 3.0],
-    custom_data=["Último Precio", "Rendimiento Diario"]
-)
-
-fig_map.update_traces(
-    texttemplate="<b>%{label}</b><br>%{customdata[1]:+.2f}%<br>%{customdata[0]}",
-    textposition="middle center",
-    textfont=dict(size=18, color="white", family="Arial Black")
-)
-
-fig_map.update_layout(
-    margin=dict(t=10, l=10, r=10, b=10),
-    template="plotly_dark",
-    paper_bgcolor="#12151e",
-    plot_bgcolor="#12151e",
-    height=420,
-    coloraxis_colorbar=dict(
-        title="Cambio (%)",
-        ticks="outside",
-        tickvals=[-3, -2, -1, 0, 1, 2, 3],
-        ticktext=["-3%", "-2%", "-1%", "0%", "+1%", "+2%", "+3%"]
-    )
-)
-
-st.plotly_chart(fig_map, use_container_width=True)
-
-# ------------------------------------------
-# SECCIÓN DE PRONÓSTICOS PARA EL DÍA SIGUIENTE
-# ------------------------------------------
-st.markdown("---")
-st.subheader("🎯 Pronósticos de Inteligencia Artificial para la Siguiente Sesión")
-
-# Fecha de pronóstico explicada con claridad
-cdmx_now = datetime.now(CDMX_TZ)
-dia_semana = cdmx_now.weekday()
-if dia_semana == 4:  # Viernes
-    prox_sesion = "Lunes (Próxima sesión bursátil)"
-elif dia_semana in [5, 6]: # Sábado o Domingo
-    prox_sesion = "Lunes (Próxima sesión bursátil)"
-else:
-    prox_sesion = "Mañana"
-
-st.info(f"📅 **Sesión analizada:** {cdmx_now.strftime('%d/%m/%Y')} | **Los pronósticos mostrados aplican para:** {prox_sesion}")
-
-if not is_authenticated:
-    st.warning("🔒 **Contenido Exclusivo para Suscriptores:** Los pronósticos predictivos calculados por el algoritmo están bloqueados. Adquiere tu suscripción o ingresa con tu clave para visualizarlos.")
-    
-    # Vista previa difuminada/demostrativa
-    preview_df = forecast_df[["Acción", "Último Precio"]].copy()
-    preview_df["Pronóstico para la Próxima Sesión"] = "🔒 Solo con suscripción activa"
-    preview_df["Nivel de Seguridad del Modelo"] = "🔒 Bloqueado"
-    st.dataframe(preview_df, use_container_width=True, hide_index=True)
-else:
-    st.success("✅ Acceso concedido a los pronósticos algorítmicos.")
-    
-    # Estilizado visual de las señales para facilitar la lectura sin tecnicismos
-    display_df = forecast_df[["Acción", "Último Precio", "Rendimiento Diario", "Pronóstico para la Próxima Sesión", "Nivel de Seguridad del Modelo"]]
-    
-    st.dataframe(
-        display_df.style.format({
-            "Rendimiento Diario": "{:+.2f}%"
-        }),
-        use_container_width=True,
-        hide_index=True
-    )
-    
-    with st.expander("ℹ️ ¿Cómo interpretar estos pronósticos de forma sencilla?"):
-        st.markdown("""
-        * **Subida Estimada:** La inteligencia artificial detecta patrones estadísticos similares a días donde la acción subió al menos un **1%** en los días posteriores.
-        * **Caída Estimada:** El algoritmo detecta probabilidades altas de retroceso o corrección mayor al **1%**.
-        * **Movimiento Neutral:** No se observa una tendencia clara; es probable que el precio se mantenga estable o en rango.
-        * **Nivel de Seguridad:** Porcentaje de coincidencia entre los patrones históricos pasados y la situación técnica de hoy.
-        """)
-
-# ==========================================
-# DESCARGO DE RESPONSABILIDAD LEGAL / EDUCATIVO
-# ==========================================
+# =========================================================
+# HEADER PRINCIPAL
+# =========================================================
 st.markdown("""
-<div class="disclaimer-box">
-    <b>Aviso Legal Importante:</b> Esta herramienta digital ha sido creada con fines estrictamente educativos, informativos y de análisis computacional. 
-    Bajo ninguna circunstancia representa una recomendación u orden de inversión personalizada, ni pretende sustituir la asesoría financiera calificada. Toda inversión en el mercado bursátil conlleva riesgos de pérdida de capital; cada usuario es plenamente responsable de sus decisiones patrimoniales.
+<div class="hero">
+    <h1>📈 AI Stock Predictor <span class="accent">Pro</span></h1>
+    <p>Predicción bursátil con Machine Learning · KNN y XGBoost sobre indicadores técnicos</p>
 </div>
 """, unsafe_allow_html=True)
+
+
+# =========================================================
+# SIDEBAR
+# =========================================================
+with st.sidebar:
+    st.markdown("### ⚙️ Configuración")
+
+    tickers_input = st.text_area(
+        "Tickers a analizar (separados por coma)",
+        value=", ".join(DEFAULT_TICKERS),
+        height=80,
+        help="Ingresa símbolos bursátiles válidos de Yahoo Finance."
+    )
+    tickers = [t.strip().upper() for t in tickers_input.split(",") if t.strip()]
+
+    period = st.selectbox(
+        "Periodo histórico",
+        options=["1y", "2y", "5y", "10y"],
+        index=2,
+        help="Ventana de datos para entrenar los modelos."
+    )
+
+    st.markdown("---")
+    st.markdown("### 🎛️ Opciones")
+    show_details = st.checkbox("Mostrar detalles técnicos", value=False)
+
+    st.markdown("---")
+    run_btn = st.button("🚀 Ejecutar análisis", use_container_width=True)
+
+    st.markdown("---")
+    st.caption("💡 **Tip:** El modelo KNN con k=50 ha demostrado mayor consistencia en distintos tickers.")
+
+
+# =========================================================
+# FLUJO PRINCIPAL
+# =========================================================
+if run_btn or "analyzed" not in st.session_state:
+    if not tickers:
+        st.error("⚠️ Debes ingresar al menos un ticker.")
+        st.stop()
+
+    with st.spinner("🔄 Descargando datos de mercado y entrenando modelos..."):
+        processed = process_all_tickers(tickers, period)
+
+    if not processed:
+        st.error("❌ No se pudieron procesar los tickers ingresados. Verifica los símbolos.")
+        st.stop()
+
+    # Entrenamiento y predicción
+    results = []
+    signals = []
+    for t, df_s in processed.items():
+        eval_res = train_and_evaluate(df_s)
+        signal, conf, last_date = predict_signal(df_s)
+
+        results.append({
+            "Ticker": t,
+            "Clase Mayoritaria": f"{eval_res['majority_acc']:.2%}",
+            "Precisión KNN": f"{eval_res['knn_acc']:.2%}",
+            "Precisión XGBoost": f"{eval_res['xgb_acc']:.2%}",
+            "Mejor Modelo": eval_res["best"],
+            "_knn": eval_res["knn_acc"],
+            "_xgb": eval_res["xgb_acc"],
+            "_maj": eval_res["majority_acc"],
+        })
+        signals.append({
+            "Ticker": t,
+            "Señal": signal,
+            "Confianza": conf,
+            "Fecha": last_date.strftime("%Y-%m-%d"),
+        })
+
+    st.session_state["analyzed"] = True
+    st.session_state["processed"] = processed
+    st.session_state["results"] = results
+    st.session_state["signals"] = signals
+
+
+# =========================================================
+# RENDERIZADO DE RESULTADOS
+# =========================================================
+if "results" in st.session_state:
+    processed = st.session_state["processed"]
+    results = st.session_state["results"]
+    signals = st.session_state["signals"]
+
+    signals_df = pd.DataFrame(signals)
+    results_df = pd.DataFrame(results)
+
+    # ---------------- KPIs GLOBALES ----------------
+    st.markdown('<div class="section-title">📊 Resumen Ejecutivo</div>', unsafe_allow_html=True)
+
+    avg_knn = results_df["_knn"].mean()
+    avg_xgb = results_df["_xgb"].mean()
+    avg_maj = results_df["_maj"].mean()
+    best_overall = "KNN" if avg_knn >= avg_xgb else "XGBoost"
+    n_bull = (signals_df["Señal"] == "ALCISTA").sum()
+    n_bear = (signals_df["Señal"] == "BAJISTA").sum()
+    n_flat = (signals_df["Señal"] == "LATERAL").sum()
+
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        st.markdown(f"""
+        <div class="kpi-card">
+            <div class="kpi-label">Tickers analizados</div>
+            <div class="kpi-value">{len(processed)}</div>
+            <div class="kpi-sub">Datos hasta {signals_df['Fecha'].max()}</div>
+        </div>""", unsafe_allow_html=True)
+    with c2:
+        st.markdown(f"""
+        <div class="kpi-card">
+            <div class="kpi-label">Precisión promedio KNN</div>
+            <div class="kpi-value">{avg_knn:.1%}</div>
+            <div class="kpi-sub">Baseline: {avg_maj:.1%}</div>
+        </div>""", unsafe_allow_html=True)
+    with c3:
+        st.markdown(f"""
+        <div class="kpi-card">
+            <div class="kpi-label">Precisión promedio XGBoost</div>
+            <div class="kpi-value">{avg_xgb:.1%}</div>
+            <div class="kpi-sub">Mejor global: {best_overall}</div>
+        </div>""", unsafe_allow_html=True)
+    with c4:
+        st.markdown(f"""
+        <div class="kpi-card">
+            <div class="kpi-label">Distribución de señales</div>
+            <div class="kpi-value">{n_bull} 🟢 / {n_bear} 🔴</div>
+            <div class="kpi-sub">{n_flat} señales laterales</div>
+        </div>""", unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # ---------------- SEÑALES ACTUALES ----------------
+    st.markdown('<div class="section-title">🎯 Señales de Trading Actuales (Modelo KNN)</div>', unsafe_allow_html=True)
+
+    def signal_badge(s):
+        if s == "ALCISTA":
+            return '<span class="badge badge-bull">🟢 ALCISTA</span>'
+        elif s == "BAJISTA":
+            return '<span class="badge badge-bear">🔴 BAJISTA</span>'
+        return '<span class="badge badge-flat">🟡 LATERAL</span>'
+
+    cols = st.columns(min(3, len(signals_df)))
+    for i, row in signals_df.iterrows():
+        with cols[i % len(cols)]:
+            st.markdown(f"""
+            <div class="kpi-card" style="margin-bottom:14px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <span style="font-size:1.4rem; font-weight:800; color:#FAFAFA;">{row['Ticker']}</span>
+                    {signal_badge(row['Señal'])}
+                </div>
+                <div style="margin-top:10px; color:#9CA3AF; font-size:0.85rem;">Confianza del modelo</div>
+                <div style="font-size:1.5rem; font-weight:700; color:#00D4AA;">{row['Confianza']:.1%}</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # ---------------- TABLA COMPARATIVA ----------------
+    st.markdown('<div class="section-title">📋 Comparativa de Modelos por Ticker</div>', unsafe_allow_html=True)
+
+    display_df = results_df[["Ticker", "Clase Mayoritaria", "Precisión KNN",
+                             "Precisión XGBoost", "Mejor Modelo"]].copy()
+    st.dataframe(display_df, use_container_width=True, hide_index=True)
+
+    # ---------------- GRÁFICOS ----------------
+    st.markdown('<div class="section-title">📉 Comparación Visual de Precisión</div>', unsafe_allow_html=True)
+
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        name="Clase Mayoritaria",
+        x=results_df["Ticker"], y=results_df["_maj"],
+        marker_color="#6B7280",
+        text=[f"{v:.1%}" for v in results_df["_maj"]],
+        textposition="outside",
+    ))
+    fig.add_trace(go.Bar(
+        name="KNN",
+        x=results_df["Ticker"], y=results_df["_knn"],
+        marker_color="#00D4AA",
+        text=[f"{v:.1%}" for v in results_df["_knn"]],
+        textposition="outside",
+    ))
+    fig.add_trace(go.Bar(
+        name="XGBoost",
+        x=results_df["Ticker"], y=results_df["_xgb"],
+        marker_color="#EF4444",
+        text=[f"{v:.1%}" for v in results_df["_xgb"]],
+        textposition="outside",
+    ))
+    fig.update_layout(
+        barmode="group",
+        template="plotly_dark",
+        paper_bgcolor="#0E1117",
+        plot_bgcolor="#0E1117",
+        height=420,
+        margin=dict(l=20, r=20, t=30, b=20),
+        yaxis=dict(title="Precisión", tickformat=".0%", gridcolor="#2A3142"),
+        xaxis=dict(gridcolor="#2A3142"),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
+        font=dict(color="#FAFAFA"),
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+    # ---------------- DETALLE POR TICKER ----------------
+    st.markdown('<div class="section-title">🔍 Análisis Detallado por Ticker</div>', unsafe_allow_html=True)
+
+    selected = st.selectbox("Selecciona un ticker para explorar:", list(processed.keys()))
+    df_sel = processed[selected]
+
+    col_a, col_b = st.columns([2, 1])
+
+    with col_a:
+        price_fig = go.Figure()
+        price_fig.add_trace(go.Candlestick(
+            x=df_sel.index,
+            open=df_sel["Open"], high=df_sel["High"],
+            low=df_sel["Low"], close=df_sel["Close"],
+            name="Precio",
+            increasing_line_color="#00D4AA",
+            decreasing_line_color="#EF4444",
+        ))
+        price_fig.add_trace(go.Scatter(
+            x=df_sel.index, y=df_sel["SMA_40"],
+            mode="lines", name="SMA 40", line=dict(color="#3B82F6", width=1.5)
+        ))
+        price_fig.add_trace(go.Scatter(
+            x=df_sel.index, y=df_sel["SMA_160"],
+            mode="lines", name="SMA 160", line=dict(color="#F59E0B", width=1.5)
+        ))
+        price_fig.update_layout(
+            title=f"{selected} · Precio + Medias Móviles",
+            template="plotly_dark",
+            paper_bgcolor="#0E1117", plot_bgcolor="#0E1117",
+            height=440, xaxis_rangeslider_visible=False,
+            margin=dict(l=20, r=20, t=50, b=20),
+            font=dict(color="#FAFAFA"),
+            legend=dict(orientation="h", y=1.05, x=0),
+        )
+        st.plotly_chart(price_fig, use_container_width=True)
+
+    with col_b:
+        # Importancia de features con XGBoost entrenado completo
+        X_all = df_sel[FEATURES]
+        y_all = df_sel["Target"]
+        xgb_full = XGBClassifier(n_estimators=100, max_depth=3, learning_rate=0.05,
+                                 random_state=42, verbosity=0)
+        xgb_full.fit(X_all, y_all)
+        importances = pd.Series(xgb_full.feature_importances_, index=FEATURES).sort_values()
+
+        imp_fig = px.bar(
+            x=importances.values, y=importances.index, orientation="h",
+            title=f"Importancia de Features · {selected}",
+            labels={"x": "Peso", "y": ""},
+        )
+        imp_fig.update_traces(marker_color="#00D4AA", text=[f"{v:.2f}" for v in importances.values],
+                              textposition="outside")
+        imp_fig.update_layout(
+            template="plotly_dark",
+            paper_bgcolor="#0E1117", plot_bgcolor="#0E1117",
+            height=440, margin=dict(l=20, r=20, t=50, b=20),
+            font=dict(color="#FAFAFA"),
+        )
+        st.plotly_chart(imp_fig, use_container_width=True)
+
+    # ---------------- RSI ----------------
+    rsi_fig = go.Figure()
+    rsi_fig.add_trace(go.Scatter(
+        x=df_sel.index, y=df_sel["RSI"], mode="lines",
+        line=dict(color="#A855F7", width=2), name="RSI"
+    ))
+    rsi_fig.add_hline(y=70, line_dash="dash", line_color="#EF4444", annotation_text="Sobrecompra (70)")
+    rsi_fig.add_hline(y=30, line_dash="dash", line_color="#00D4AA", annotation_text="Sobreventa (30)")
+    rsi_fig.update_layout(
+        title=f"{selected} · RSI (14)",
+        template="plotly_dark",
+        paper_bgcolor="#0E1117", plot_bgcolor="#0E1117",
+        height=300, margin=dict(l=20, r=20, t=50, b=20),
+        font=dict(color="#FAFAFA"),
+    )
+    st.plotly_chart(rsi_fig, use_container_width=True)
+
+    # ---------------- DETALLES TÉCNICOS ----------------
+    if show_details:
+        with st.expander("🧠 Ver distribución del Target y datos crudos"):
+            st.markdown(f"**Distribución de clases del Target para {selected}:**")
+            dist = df_sel["Target"].value_counts(normalize=True).rename(
+                index=LABEL_MAP).round(3)
+            st.dataframe(dist, use_container_width=True)
+
+            st.markdown("**Últimas 10 velas procesadas:**")
+            st.dataframe(df_sel.tail(10), use_container_width=True)
+
+    # ---------------- FOOTER ----------------
+    st.markdown("---")
+    st.caption(
+        "⚠️ **Aviso:** Este análisis es con fines educativos y no constituye asesoría financiera. "
+        "El trading conlleva riesgo de pérdida de capital. Los modelos se basan en patrones históricos "
+        "y no garantizan resultados futuros."
+    )
+    st.caption(f"Última actualización: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
